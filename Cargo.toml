@@ -1,0 +1,14 @@
+[package]
+name = "ravenserver-rs"
+version = "0.1.0"
+authors = ["nicohman <nicohman@demenses.net>"]
+edition = "2018"
+[lib]
+name = "ravenserver"
+path = "src/lib.rs"
+[dependencies]
+rocket = "0.4.0"
+mongodb = "0.3.11"
+serde = "1.0"
+serde_derive = "1.0"
+bson = "0.9.0"
