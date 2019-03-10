@@ -7,4 +7,7 @@ extern crate serde;
 extern crate serde_derive;
 #[macro_use]
 extern crate bson;
+/// Provides structs and functionality for specific document schemas
 pub mod themes;
+/// Provides functionality for MongoDB operations
+pub mod mongo;

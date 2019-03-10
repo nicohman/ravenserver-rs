@@ -7,7 +7,6 @@ extern crate serde;
 extern crate serde_derive;
 #[macro_use]
 extern crate bson;
-mod themes;
 fn main() {
     println!("Hello, world!");
 }
