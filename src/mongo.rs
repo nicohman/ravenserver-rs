@@ -3,24 +3,47 @@ use mongodb::coll::options::*;
 use mongodb::coll::results::*;
 use mongodb::coll::*;
 use mongodb::db::*;
+use mongodb::pool::*;
 use mongodb::*;
+use rocket::request::{self, FromRequest};
+use rocket::{Outcome, Request, State};
 use serde::de::DeserializeOwned;
 use serde::ser::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 pub struct DataBase {
-    pub client: mongodb::Client,
+    client: Option<Client>,
     pub collections: RefCell<HashMap<String, Rc<Collection>>>,
     db_name: String,
+    pub db: Database,
 }
 impl DataBase {
     pub fn new(host: impl Into<String>, port: u16, db_name: impl Into<String>) -> Result<DataBase> {
         let client = Client::connect(&host.into(), port)?;
+        let db_name = db_name.into();
         Ok(DataBase {
             collections: RefCell::new(HashMap::new()),
-            client: client,
-            db_name: db_name.into(),
+            db: client.db(&db_name),
+            client: Some(client),
+            db_name: db_name,
+        })
+    }
+    pub fn from_client(client: Client, db_name: impl Into<String>) -> DataBase {
+        let db_name = db_name.into();
+        DataBase {
+            collections: RefCell::new(HashMap::new()),
+            db: client.db(&db_name),
+            client: Some(client),
+            db_name: db_name,
+        }
+    }
+    pub fn from_db(db: Database) -> Result<DataBase> {
+        Ok(DataBase {
+            collections: RefCell::new(HashMap::new()),
+            db_name: db.name.clone(),
+            client: None,
+            db: db,
         })
     }
     fn collection_by_name(&self, name: impl Into<String>) -> Rc<Collection> {
@@ -29,7 +52,7 @@ impl DataBase {
         if has {
             self.collections.borrow().get(&name).unwrap().clone()
         } else {
-            let collection = Rc::new(self.client.db(&self.db_name).collection(&name));
+            let collection = Rc::new(self.db.collection(&name));
             self.collections
                 .borrow_mut()
                 .insert(name.clone(), collection.clone());
