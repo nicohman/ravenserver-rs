@@ -1,0 +1,36 @@
+<div class="theme-container">
+    <div class='theme'>
+        <div class="theme-info">
+            <div class="theme-name"><a class="theme-title-link" href="/themes/view/<%= theme.name %>">
+                    {{ theme.name }}
+                </a>
+            </div>
+            <div class="theme-author">
+                <a class="theme-author-link" href="/themes/users/view/<%= theme.author %>">
+                    {{theme.pauthor }}
+                </a>
+            </div>
+        </div>
+        <br>
+        <a class="theme-screen-link" href="/themes/view/{{theme.name }}">
+            {{#if theme.screen}}
+                <img class="theme-screen" src="{{ theme.screen}}">
+                {{ else  }}
+                <img class="theme-screen empty-screen" src="/empty.png">
+            {{/if}}
+        </a>
+        <div class="theme-desc">
+            {{#if theme.description}}
+                   {{theme.description}}
+            {{else }}
+                No Description
+            {{/if}}
+        </div>
+        <div class="theme-date">
+            Updated {{ theme.updated}}
+        </div>
+        <div class="theme-installs">
+            Downloads: {{ theme.installs }}
+        </div>
+    </div>
+</div>

@@ -1,0 +1,38 @@
+<div id="header">
+    <div id="header-home">
+        <a href="/">
+            ThemeHub
+        </a>
+    </div>
+    <div id="header-sorts">
+        <div id="header-top">
+            <a href="/">
+                Top Themes
+            </a>
+        </div>
+        <div id="header-new">
+            <a href="/recent">
+                New Themes
+            </a>
+        </div>
+        <div id="header-about">
+            <a href="/about">
+                About
+            </a>
+        </div>
+        {{#if include_downloads}}
+            <div id="header-downloads">
+                <a href="/downloads">
+                    Downloads
+                </a>
+            </div>
+        {{/if}}
+    </div>
+    <div id="header-ptitle">
+        {{title}}
+        {{#if constraints}}
+            |
+            {{constraints}}
+        {{/if}}
+    </div>
+</div>

@@ -1,2 +1,4 @@
+[development]
+port = 8080
 [global.databases]
-mongodb = { url = "mongodb://127.0.0.1/themes" }
+mongodb = { url = "mongodb://127.0.0.1/themes"}
