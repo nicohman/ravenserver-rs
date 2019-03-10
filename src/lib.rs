@@ -7,8 +7,7 @@ extern crate mongodb;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate bson;
+
 pub mod error;
 pub use error::{Result};
 /// Provides functionality for MongoDB operations

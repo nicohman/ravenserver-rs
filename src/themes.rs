@@ -1,4 +1,5 @@
 use crate::mongo::*;
+use mongodb::oid::*;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Theme {
     pub name: String,
@@ -17,6 +18,8 @@ pub struct Theme {
     pub reports: Vec<Report>,
     #[serde(default)]
     pub approved: bool,
+    #[serde(flatten)]
+    pub mongo: MongoMetadata,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Report {
@@ -28,6 +31,9 @@ impl MongoDocument for Theme {
     fn collection_name() -> String {
         String::from("themes")
     }
+    fn get_id<'a>(&'a self) -> &'a ObjectId {
+        &self.mongo.id
+    }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
@@ -35,10 +41,15 @@ pub struct User {
     pub id: String,
     #[serde(rename = "pass")]
     pub password: String,
-    pub date: String
+    pub date: String,
+    #[serde(flatten)]
+    pub mongo: MongoMetadata,
 }
 impl MongoDocument for User {
     fn collection_name() -> String {
         String::from("users")
+    }
+    fn get_id<'a>(&'a self) -> &'a ObjectId {
+        &self.mongo.id
     }
 }
