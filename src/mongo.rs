@@ -1,3 +1,4 @@
+use crate::Result;
 use mongodb::coll::options::*;
 use mongodb::coll::*;
 use mongodb::db::*;
@@ -53,6 +54,24 @@ impl DataBase {
             .into_iter()
             .map(|x| mongodb::from_bson(mongodb::Bson::Document(x)))
             .collect())
+    }
+    pub fn find_document<T>(
+        &self,
+        filter: Document,
+        options: Option<FindOptions>,
+    ) -> Result<Option<T>>
+    where
+        T: MongoDocument,
+        T: DeserializeOwned,
+    {
+        if let Some(doc) = self
+            .collection_by_type::<T>()
+            .find_one(Some(filter), options)?
+        {
+            Ok(Some(mongodb::from_bson(mongodb::Bson::Document(doc))?))
+        } else {
+            Ok(None)
+        }
     }
 }
 pub trait MongoDocument {

@@ -10,18 +10,16 @@ fn connect() -> DataBase {
 #[test]
 fn find_theme() {
     let db = connect();
-    let mut docs = db.find_documents::<Theme>(doc!(
+    let mut theme= db.find_document::<Theme>(doc!(
         "name":"fall"
-    ), None).unwrap();
-    let theme = docs.remove(0).unwrap();
+    ), None).unwrap().unwrap();
     assert_eq!("fall", &theme.name);
 }
 #[test]
 fn find_user() {
     let db = connect();
-    let mut docs = db.find_documents::<User>(doc!(
+    let mut user = db.find_document::<User>(doc!(
         "name":"nicohman"
-    ), None).unwrap();
-    let user = docs.remove(0).unwrap();
+    ), None).unwrap().unwrap();
     assert_eq!("nicohman", &user.name);
 }
