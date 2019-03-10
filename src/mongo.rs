@@ -1,29 +1,40 @@
 use mongodb::coll::options::*;
 use mongodb::coll::*;
-use mongodb::cursor::*;
 use mongodb::db::*;
 use mongodb::*;
 use serde::de::DeserializeOwned;
-use crate::themes::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 pub struct DataBase {
     pub client: mongodb::Client,
-    pub themes_collection: Collection,
-    pub users_collection: Collection,
+    pub collections: RefCell<HashMap<String, Rc<Collection>>>,
+    db_name: String,
 }
 impl DataBase {
-    pub fn new(host: impl Into<String>, port: u16) -> Result<DataBase> {
+    pub fn new(host: impl Into<String>, port: u16, db_name: impl Into<String>) -> Result<DataBase> {
         let client = Client::connect(&host.into(), port)?;
-        Ok(DataBase{
-            users_collection: client.db("themes").collection("users"),
-            themes_collection: client.db("themes").collection("themes"),
+        Ok(DataBase {
+            collections: RefCell::new(HashMap::new()),
             client: client,
+            db_name: db_name.into(),
         })
     }
-    fn collection_by_name<'a>(&'a self, name: impl Into<String>) -> &'a Collection {
-        match name.into().as_ref() {
-            "themes" => &self.themes_collection,
-            _ => panic!("wtf"),
+    fn collection_by_name(&self, name: impl Into<String>) -> Rc<Collection> {
+        let name = name.into();
+        let has = self.collections.borrow().contains_key(&name);
+        if has {
+            self.collections.borrow().get(&name).unwrap().clone()
+        } else {
+            let collection = Rc::new(self.client.db(&self.db_name).collection(&name));
+            self.collections
+                .borrow_mut()
+                .insert(name.clone(), collection.clone());
+            collection
         }
+    }
+    fn collection_by_type<T: MongoDocument>(&self) -> Rc<Collection> {
+        self.collection_by_name(T::collection_name())
     }
     pub fn find_documents<T>(
         &self,
@@ -35,10 +46,11 @@ impl DataBase {
         T: DeserializeOwned,
     {
         let docs = self
-            .collection_by_name(T::collection_name().as_ref())
+            .collection_by_type::<T>()
             .find(Some(filter), options)?
             .drain_current_batch()?;
-        Ok(docs.into_iter()
+        Ok(docs
+            .into_iter()
             .map(|x| mongodb::from_bson(mongodb::Bson::Document(x)))
             .collect())
     }

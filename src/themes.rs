@@ -29,3 +29,16 @@ impl MongoDocument for Theme {
         String::from("themes")
     }
 }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct User {
+    pub name: String,
+    pub id: String,
+    #[serde(rename = "pass")]
+    pub password: String,
+    pub date: String
+}
+impl MongoDocument for User {
+    fn collection_name() -> String {
+        String::from("users")
+    }
+}
