@@ -25,6 +25,7 @@ fn main() {
         .mount("/", routes![routes::index])
         .mount("/", routes![routes::recent])
         .mount("/", routes![routes::user_themes])
+        .mount("/", routes![routes::about])
         .mount(
             "/",
             rocket_contrib::serve::StaticFiles::from(concat!(

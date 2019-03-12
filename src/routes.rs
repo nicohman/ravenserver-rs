@@ -7,7 +7,7 @@ pub mod rendering {
     use rocket_contrib::templates::Template;
     use std::collections::HashMap;
     lazy_static! {
-        static ref CONFIG: HashMap<String, Bson> = {
+        pub static ref CONFIG: HashMap<String, Bson> = {
             let mut map = HashMap::new();
             map.insert("include_downloads".to_string(), bson!(true));
             map
@@ -60,7 +60,7 @@ pub fn index(conn: DbConnection) -> Template {
     find.sort = Some(doc! {
         "installs":-1
     });
-    render_themes_view(conn, None, Some(find), "All themes", None as Option<String>)
+    render_themes_view(conn, None, Some(find), "All themes", Some("Sorted by most popular"))
 }
 #[get("/recent")]
 pub fn recent(conn: DbConnection) -> Template {
@@ -78,6 +78,8 @@ pub fn recent(conn: DbConnection) -> Template {
 }
 #[get("/themes/users/view/<id>")]
 pub fn user_themes(conn: DbConnection, id: String) -> Template {
+    let db = DataBase::from_db(conn.0.clone()).unwrap();
+    let user : User =  db.find_one_key_value("id", id.as_str()).unwrap().unwrap();
     let mut find = FindOptions::new();
     find.sort = Some(doc! {
         "installs":-1
@@ -88,7 +90,11 @@ pub fn user_themes(conn: DbConnection, id: String) -> Template {
             "author":id.as_str()
         }),
         Some(find),
-        format!("All themes by {}", id),
+        format!("All themes by {}", user.name.as_str()),
         None as Option<String>,
     )
+}
+#[get("/about")]
+pub fn about() -> Template {
+    Template::render("about", CONFIG.clone())
 }
