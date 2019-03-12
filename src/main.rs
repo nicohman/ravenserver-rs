@@ -22,10 +22,9 @@ fn main() {
     rocket::ignite()
         .attach(DbConnection::fairing())
         .attach(Template::fairing())
-        .mount("/", routes![routes::index])
-        .mount("/", routes![routes::recent])
-        .mount("/", routes![routes::user_themes])
-        .mount("/", routes![routes::about])
+        .mount("/", routes![routes::index, routes::recent, routes::about])
+        .mount("/themes/users/", routes![routes::users::user_themes])
+        .mount("/themes/report/", routes![routes::report::report_view, routes::report::report_view_default])
         .mount(
             "/",
             rocket_contrib::serve::StaticFiles::from(concat!(

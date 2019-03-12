@@ -76,25 +76,48 @@ pub fn recent(conn: DbConnection) -> Template {
         Some("Sorted by most recent"),
     )
 }
-#[get("/themes/users/view/<id>")]
-pub fn user_themes(conn: DbConnection, id: String) -> Template {
-    let db = DataBase::from_db(conn.0.clone()).unwrap();
-    let user : User =  db.find_one_key_value("id", id.as_str()).unwrap().unwrap();
-    let mut find = FindOptions::new();
-    find.sort = Some(doc! {
-        "installs":-1
-    });
-    render_themes_view(
-        conn,
-        Some(doc! {
-            "author":id.as_str()
-        }),
-        Some(find),
-        format!("All themes by {}", user.name.as_str()),
-        None as Option<String>,
-    )
-}
 #[get("/about")]
 pub fn about() -> Template {
     Template::render("about", CONFIG.clone())
+}
+/// Routes to do with reporting themes
+pub mod report {
+    use super::*;
+    #[get("/")]
+    pub fn report_view_default() -> Template {
+        let mut context = CONFIG.clone();
+        context.insert("ptitle".to_string(), bson!("Report a Theme"));
+        Template::render("report", context)
+    }
+    #[get("/<name>")]
+    pub fn report_view(name: String) -> Template {
+        let mut context = CONFIG.clone();
+        context.insert("ptitle".to_string(), bson!("Report a Theme"));
+        context.insert("name".to_string(), bson!(name));
+        Template::render("report", context)
+    }
+
+}
+/// Routes relating to user-specific pages
+pub mod users {
+    use super::*;
+    #[get("/view/<id>")]
+    pub fn user_themes(conn: DbConnection, id: String) -> Template {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let user : User =  db.find_one_key_value("id", id.as_str()).unwrap().unwrap();
+        let mut find = FindOptions::new();
+        find.sort = Some(doc! {
+            "installs":-1
+        });
+        render_themes_view(
+            conn,
+            Some(doc! {
+                "author":id.as_str()
+            }),
+            Some(find),
+            format!("All themes by {}", user.name.as_str()),
+            None as Option<String>,
+        )
+    }
+
 }
