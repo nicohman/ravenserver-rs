@@ -1,5 +1,6 @@
 use crate::routes::rendering::*;
 use crate::*;
+use mongodb::to_bson;
 use rocket_contrib::templates::Template;
 pub mod rendering {
     use crate::*;
@@ -60,7 +61,13 @@ pub fn index(conn: DbConnection) -> Template {
     find.sort = Some(doc! {
         "installs":-1
     });
-    render_themes_view(conn, None, Some(find), "All themes", Some("Sorted by most popular"))
+    render_themes_view(
+        conn,
+        None,
+        Some(find),
+        "All themes",
+        Some("Sorted by most popular"),
+    )
 }
 #[get("/recent")]
 pub fn recent(conn: DbConnection) -> Template {
@@ -79,6 +86,14 @@ pub fn recent(conn: DbConnection) -> Template {
 #[get("/about")]
 pub fn about() -> Template {
     Template::render("about", CONFIG.clone())
+}
+#[get("/<name>")]
+pub fn theme(conn: DbConnection, name: String) -> Template {
+    let db = DataBase::from_db(conn.0.clone()).unwrap();
+    let theme: Theme = db.find_one_key_value("name", name).unwrap().unwrap();
+    let mut context = CONFIG.clone();
+    context.insert("theme".to_string(), to_bson(&theme).unwrap());
+    Template::render("theme", context)
 }
 /// Routes to do with reporting themes
 pub mod report {
@@ -104,7 +119,7 @@ pub mod users {
     #[get("/view/<id>")]
     pub fn user_themes(conn: DbConnection, id: String) -> Template {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        let user : User =  db.find_one_key_value("id", id.as_str()).unwrap().unwrap();
+        let user: User = db.find_one_key_value("id", id.as_str()).unwrap().unwrap();
         let mut find = FindOptions::new();
         find.sort = Some(doc! {
             "installs":-1
