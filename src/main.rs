@@ -22,7 +22,7 @@ fn main() {
     rocket::ignite()
         .attach(DbConnection::fairing())
         .attach(Template::fairing())
-        .mount("/", routes![routes::index, routes::recent, routes::about])
+        .mount("/", routes![routes::index, routes::recent, routes::about, routes::download_redirect])
         .mount("/themes/users/", routes![routes::users::user_themes])
         .mount("/themes/report/", routes![routes::report::report_view, routes::report::report_view_default])
         .mount("/themes/view/", routes![routes::theme])

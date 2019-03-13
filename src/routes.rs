@@ -95,6 +95,10 @@ pub fn theme(conn: DbConnection, name: String) -> Template {
     context.insert("theme".to_string(), to_bson(&theme).unwrap());
     Template::render("theme", context)
 }
+#[get("/downloads")]
+pub fn download_redirect() -> rocket::response::Redirect {
+    rocket::response::Redirect::to("https://nicohman.demenses.net/downloads")
+}
 /// Routes to do with reporting themes
 pub mod report {
     use super::*;
