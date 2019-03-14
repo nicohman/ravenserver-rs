@@ -1,6 +1,9 @@
 use crate::routes::rendering::*;
 use crate::*;
 use mongodb::to_bson;
+use rocket::http::Status;
+use rocket::response::status::Custom;
+use rocket::response::NamedFile;
 use rocket_contrib::templates::Template;
 pub mod rendering {
     use crate::*;
@@ -98,6 +101,19 @@ pub fn theme(conn: DbConnection, name: String) -> Template {
 #[get("/downloads")]
 pub fn download_redirect() -> rocket::response::Redirect {
     rocket::response::Redirect::to("https://nicohman.demenses.net/downloads")
+}
+#[get("/<name>")]
+pub fn download_theme(conn: DbConnection, name: String) -> Custom<NamedFile> {
+    let db = DataBase::from_db(conn.0.clone()).unwrap();
+    let theme: Theme = db.find_one_key_value("name", name).unwrap().unwrap();
+    let file =
+        NamedFile::open(env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path)
+            .unwrap();
+    if theme.reports.len() > 0 && !theme.approved {
+        Custom(Status::AlreadyReported, file)
+    } else {
+        Custom(Status::Ok, file)
+    }
 }
 /// Routes to do with reporting themes
 pub mod report {

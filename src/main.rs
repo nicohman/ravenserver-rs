@@ -26,6 +26,7 @@ fn main() {
         .mount("/themes/users/", routes![routes::users::user_themes])
         .mount("/themes/report/", routes![routes::report::report_view, routes::report::report_view_default])
         .mount("/themes/view/", routes![routes::theme])
+        .mount("/themes/repo", routes![routes::download_theme])
         .mount(
             "/",
             rocket_contrib::serve::StaticFiles::from(concat!(
