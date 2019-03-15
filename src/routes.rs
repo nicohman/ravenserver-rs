@@ -1,7 +1,9 @@
 use crate::routes::rendering::*;
 use crate::*;
+use auth::*;
 use mongodb::to_bson;
 use rocket::http::Status;
+use rocket::request::FromFormValue;
 use rocket::response::status::Custom;
 use rocket::response::NamedFile;
 use rocket_contrib::json::{Json, JsonValue};
@@ -119,11 +121,17 @@ pub fn download_theme(conn: DbConnection, name: String) -> Custom<NamedFile> {
 }
 /// Routes to do with theme metadata
 pub mod metadata {
+    #[derive(Serialize, Deserialize, Debug, FromFormValue)]
+    pub enum MetaDataType {
+        #[serde(rename = "screen")]
+        Screen,
+        #[serde(rename = "description")]
+        Description,
+    }
     use super::*;
     #[get("/<name>")]
     pub fn get_metadata(conn: DbConnection, name: String) -> ApiResult<JsonValue> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        let theme: Theme;
         if let Some(theme) = db
             .find_one::<Theme>(doc! {"name": &name}, None)
             .not_found()?
@@ -132,6 +140,30 @@ pub mod metadata {
                 "screen": theme.screen,
                 "description":theme.description
             }))
+        } else {
+            not_found!(name)
+        }
+    }
+    #[post("/<name>?<typem>&<value>")]
+    pub fn post_metadata(
+        conn: DbConnection,
+        name: String,
+        token: UserToken,
+        typem: MetaDataType,
+        value: String,
+    ) -> ApiResult<()> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if let Ok(Some(mut theme)) = db.find_one::<Theme>(doc! {"name":&name}, None) {
+            if token.id == theme.author {
+                match typem {
+                    MetaDataType::Screen => theme.screen = value,
+                    MetaDataType::Description => theme.description = value,
+                };
+                db.save::<Theme>(theme, None).expect("Couldn't save theme");
+                Ok(())
+            } else {
+                Err(WebError::new("Not Allowed").with_status(Status::Forbidden))
+            }
         } else {
             not_found!(name)
         }
