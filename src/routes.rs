@@ -4,7 +4,9 @@ use mongodb::to_bson;
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::response::NamedFile;
+use rocket_contrib::json::{Json, JsonValue};
 use rocket_contrib::templates::Template;
+use rocket_failure::errors::*;
 pub mod rendering {
     use crate::*;
     use mongodb::{to_bson, Bson};
@@ -113,6 +115,26 @@ pub fn download_theme(conn: DbConnection, name: String) -> Custom<NamedFile> {
         Custom(Status::AlreadyReported, file)
     } else {
         Custom(Status::Ok, file)
+    }
+}
+/// Routes to do with theme metadata
+pub mod metadata {
+    use super::*;
+    #[get("/<name>")]
+    pub fn get_metadata(conn: DbConnection, name: String) -> ApiResult<JsonValue> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let theme: Theme;
+        if let Some(theme) = db
+            .find_one::<Theme>(doc! {"name": &name}, None)
+            .not_found()?
+        {
+            Ok(json!({
+                "screen": theme.screen,
+                "description":theme.description
+            }))
+        } else {
+            not_found!(name)
+        }
     }
 }
 /// Routes to do with reporting themes

@@ -10,6 +10,8 @@ extern crate serde;
 #[macro_use]
 extern crate lazy_static;
 extern crate serde_derive;
+#[macro_use]
+extern crate rocket_failure;
 use mongodb::coll::options::*;
 use ravenserver::mongo::*;
 use ravenserver::themes::*;
