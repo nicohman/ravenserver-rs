@@ -7,6 +7,4 @@
 ** TODO Report Theme
 ** TODO Upload theme
 ** TODO Delete Theme
-** TODO Update Metadata
-** TODO Get Metadata
 ** TODO Download Counting

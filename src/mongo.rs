@@ -130,9 +130,45 @@ impl DataBase {
         T: MongoDocument,
     {
         Ok(self.collection_by_type::<T>().replace_one(
-            doc!{"_id": document.get_id().clone()},
+            doc! {"_id": document.get_id().clone()},
             mongodb::to_bson(&document)?.as_document().unwrap().clone(),
             options,
+        )?)
+    }
+    pub fn delete<T>(
+        &self,
+        document: T,
+        write_concern: Option<mongodb::common::WriteConcern>,
+    ) -> Result<DeleteResult>
+    where
+        T: Serialize,
+        T: MongoDocument,
+    {
+        Ok(self.collection_by_type::<T>().delete_many(
+            mongodb::to_bson(&document)
+                .unwrap()
+                .as_document()
+                .unwrap()
+                .clone(),
+            write_concern,
+        )?)
+    }
+    pub fn delete_one<T>(
+        &self,
+        document: T,
+        write_concern: Option<mongodb::common::WriteConcern>,
+    ) -> Result<DeleteResult>
+    where
+        T: Serialize,
+        T: MongoDocument,
+    {
+        Ok(self.collection_by_type::<T>().delete_one(
+            mongodb::to_bson(&document)
+                .unwrap()
+                .as_document()
+                .unwrap()
+                .clone(),
+            write_concern,
         )?)
     }
 }
