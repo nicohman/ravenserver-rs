@@ -1,6 +1,6 @@
+use auth::*;
 use crate::routes::rendering::*;
 use crate::*;
-use auth::*;
 use mongodb::to_bson;
 use rocket::http::Status;
 use rocket::request::FromFormValue;
@@ -95,28 +95,40 @@ pub fn about() -> Template {
     Template::render("about", CONFIG.clone())
 }
 #[get("/<name>")]
-pub fn theme(conn: DbConnection, name: String) -> Template {
+pub fn theme(conn: DbConnection, name: String) -> ApiResult<Template> {
     let db = DataBase::from_db(conn.0.clone()).unwrap();
-    let theme: Theme = db.find_one_key_value("name", name).unwrap().unwrap();
-    let mut context = CONFIG.clone();
-    context.insert("theme".to_string(), to_bson(&theme).unwrap());
-    Template::render("theme", context)
+    if let Some(theme) = db
+        .find_one::<Theme>(doc!{"name": &name}, None)
+        .not_found()?
+    {
+        let mut context = CONFIG.clone();
+        context.insert("theme".to_string(), to_bson(&theme).unwrap());
+        Ok(Template::render("theme", context))
+    } else {
+        not_found!(name)
+    }
 }
 #[get("/downloads")]
 pub fn download_redirect() -> rocket::response::Redirect {
     rocket::response::Redirect::to("https://nicohman.demenses.net/downloads")
 }
 #[get("/<name>")]
-pub fn download_theme(conn: DbConnection, name: String) -> Custom<NamedFile> {
+pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<NamedFile>> {
     let db = DataBase::from_db(conn.0.clone()).unwrap();
-    let theme: Theme = db.find_one_key_value("name", name).unwrap().unwrap();
-    let file =
-        NamedFile::open(env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path)
-            .unwrap();
-    if theme.reports.len() > 0 && !theme.approved {
-        Custom(Status::AlreadyReported, file)
+    if let Some(theme) = db
+        .find_one::<Theme>(doc!{ "name": &name }, None)
+        .not_found()?
+    {
+        let file =
+            NamedFile::open(env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path)
+                .unwrap();
+        if theme.reports.len() > 0 && !theme.approved {
+            Ok(Custom(Status::AlreadyReported, file))
+        } else {
+            Ok(Custom(Status::Ok, file))
+        }
     } else {
-        Custom(Status::Ok, file)
+        not_found!(name)
     }
 }
 /// Routes to do with theme metadata
@@ -187,26 +199,31 @@ pub mod report {
     }
 
 }
-/// Routes relating to user-specific pages
+/// Routes relating to user-specific endpoints
 pub mod users {
     use super::*;
     #[get("/view/<id>")]
-    pub fn user_themes(conn: DbConnection, id: String) -> Template {
+    pub fn user_themes(conn: DbConnection, id: String) -> ApiResult<Template> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        let user: User = db.find_one_key_value("id", id.as_str()).unwrap().unwrap();
-        let mut find = FindOptions::new();
-        find.sort = Some(doc! {
-            "installs":-1
-        });
-        render_themes_view(
-            conn,
-            Some(doc! {
-                "author":id.as_str()
-            }),
-            Some(find),
-            format!("All themes by {}", user.name.as_str()),
-            None as Option<String>,
-        )
+        if let Some(user) = db
+            .find_one::<User>(doc!{"id":id.as_str()}, None)
+            .not_found()?
+        {
+            let mut find = FindOptions::new();
+            find.sort = Some(doc! {
+                "installs":-1
+            });
+            Ok(render_themes_view(
+                conn,
+                Some(doc! {
+                    "author":id.as_str()
+                }),
+                Some(find),
+                format!("All themes by {}", user.name.as_str()),
+                None as Option<String>,
+            ))
+        } else {
+            not_found!(id)
+        }
     }
-
 }
