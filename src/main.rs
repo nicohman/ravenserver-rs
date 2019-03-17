@@ -9,8 +9,11 @@ extern crate rocket_contrib;
 extern crate serde;
 #[macro_use]
 extern crate lazy_static;
+extern crate serde_json;
 extern crate jsonwebtoken as jwt;
 extern crate reqwest;
+#[cfg(test)]
+mod tests;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -24,7 +27,7 @@ mod auth;
 mod routes;
 #[database("mongodb")]
 pub struct DbConnection(databases::mongodb::db::Database);
-fn main() {
+pub fn rocket() -> rocket::Rocket {
     rocket::ignite()
         .attach(DbConnection::fairing())
         .attach(Template::fairing())
@@ -53,6 +56,15 @@ fn main() {
                 env!("CARGO_MANIFEST_DIR"),
                 "/static"
             )),
-        ).mount("/themes/meta", routes![routes::metadata::get_metadata, routes::metadata::post_metadata])
-        .launch();
+        )
+        .mount(
+            "/themes/meta",
+            routes![
+                routes::metadata::get_metadata,
+                routes::metadata::post_metadata
+            ],
+        )
+}
+fn main() {
+    rocket().launch();
 }

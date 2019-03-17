@@ -14,17 +14,29 @@ pub struct UserToken {
     pub id: String,
 }
 pub fn decode_user(un: impl Into<String>) -> Result<UserToken, jwt::errors::Error> {
-    Ok(decode::<UserToken>(&un.into(), &SECRET.as_bytes(), &Validation::default())?.claims)
+    Ok(decode::<UserToken>(
+        &un.into(),
+        &SECRET.as_bytes(),
+        &Validation {
+            validate_exp: false,
+            ..Default::default()
+        },
+    )?
+    .claims)
 }
 impl<'a, 'r> FromRequest<'a, 'r> for UserToken {
     type Error = ();
     fn from_request(request: &'a Request<'r>) -> request::Outcome<UserToken, ()> {
-        let url = Url::parse(request.uri().query().unwrap()).expect("Couldn't parse URI");
+        let url =
+            Url::parse(&("https://demenses.net/?".to_string() + request.uri().query().unwrap()))
+                .expect("Couldn't parse URI");
+        println!("{:?}", url);
         for (k, v) in url.query_pairs() {
             if k == Cow::Borrowed("token") {
-                if let Ok(token) = decode_user(v) {
+                if let Ok(token) = decode_user(v.clone()) {
                     return Outcome::Success(token);
                 } else {
+                    println!("{:?}", decode_user(v));
                     return Outcome::Failure((Status::InternalServerError, ()));
                 }
             }
