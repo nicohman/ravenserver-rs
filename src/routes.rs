@@ -1,4 +1,5 @@
 use auth::*;
+use bcrypt::*;
 use crate::routes::rendering::*;
 use crate::*;
 use mongodb::to_bson;
@@ -224,6 +225,26 @@ pub mod users {
             ))
         } else {
             not_found!(id)
+        }
+    }
+    #[post("/login?<name>&<pass>")]
+    pub fn login(conn: DbConnection, name: String, pass: String) -> ApiResult<JsonValue> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if let Some(user) = db.find_one::<User>(doc!{"name": &name}, None).not_found()? {
+            if verify(&pass, user.password.as_str())? {
+                let token = encode_user(UserToken {
+                    name: name.clone(),
+                    id: user.id,
+                })?;
+                Ok(json!({
+                    "name":name,
+                    "token":token
+                }))
+            } else {
+                Err(WebError::new("Wrong login details").with_status(Status::Forbidden))
+            }
+        } else {
+            not_found!(name);
         }
     }
 }

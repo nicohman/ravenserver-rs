@@ -9,9 +9,10 @@ extern crate rocket_contrib;
 extern crate serde;
 #[macro_use]
 extern crate lazy_static;
-extern crate serde_json;
+extern crate bcrypt;
 extern crate jsonwebtoken as jwt;
 extern crate reqwest;
+extern crate serde_json;
 #[cfg(test)]
 mod tests;
 #[macro_use]
@@ -40,7 +41,10 @@ pub fn rocket() -> rocket::Rocket {
                 routes::download_redirect
             ],
         )
-        .mount("/themes/users/", routes![routes::users::user_themes])
+        .mount(
+            "/themes/users/",
+            routes![routes::users::user_themes, routes::users::login],
+        )
         .mount(
             "/themes/report/",
             routes![

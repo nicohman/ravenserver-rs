@@ -24,6 +24,9 @@ pub fn decode_user(un: impl Into<String>) -> Result<UserToken, jwt::errors::Erro
     )?
     .claims)
 }
+pub fn encode_user(user: UserToken) -> Result<String, jwt::errors::Error> {
+    Ok(encode::<UserToken>(&Header::default(), &user, SECRET.as_ref())?)
+}
 impl<'a, 'r> FromRequest<'a, 'r> for UserToken {
     type Error = ();
     fn from_request(request: &'a Request<'r>) -> request::Outcome<UserToken, ()> {
