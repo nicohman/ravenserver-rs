@@ -9,7 +9,10 @@ use rocket::response::status::Custom;
 use rocket::response::NamedFile;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_contrib::templates::Template;
+use chrono::prelude::*;
 use rocket_failure::errors::*;
+use crypto::digest::Digest;
+use crypto::sha1::Sha1;
 pub mod rendering {
     use crate::*;
     use mongodb::{to_bson, Bson};
@@ -100,7 +103,7 @@ pub fn theme(conn: DbConnection, name: String) -> ApiResult<Template> {
     let db = DataBase::from_db(conn.0.clone()).unwrap();
     if let Some(theme) = db
         .find_one::<Theme>(doc!{"name": &name}, None)
-        .not_found()?
+        ?
     {
         let mut context = CONFIG.clone();
         context.insert("theme".to_string(), to_bson(&theme).unwrap());
@@ -118,7 +121,7 @@ pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<Name
     let db = DataBase::from_db(conn.0.clone()).unwrap();
     if let Some(theme) = db
         .find_one::<Theme>(doc!{ "name": &name }, None)
-        .not_found()?
+       ?
     {
         let file =
             NamedFile::open(env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path)
@@ -147,7 +150,7 @@ pub mod metadata {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if let Some(theme) = db
             .find_one::<Theme>(doc! {"name": &name}, None)
-            .not_found()?
+            ?
         {
             Ok(json!({
                 "screen": theme.screen,
@@ -166,7 +169,7 @@ pub mod metadata {
         value: String,
     ) -> ApiResult<()> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        if let Ok(Some(mut theme)) = db.find_one::<Theme>(doc! {"name":&name}, None) {
+        if let Some(mut theme) = db.find_one::<Theme>(doc! {"name":&name}, None)? {
             if token.id == theme.author {
                 match typem {
                     MetaDataType::Screen => theme.screen = value,
@@ -208,7 +211,7 @@ pub mod users {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if let Some(user) = db
             .find_one::<User>(doc!{"id":id.as_str()}, None)
-            .not_found()?
+            ?
         {
             let mut find = FindOptions::new();
             find.sort = Some(doc! {
@@ -230,7 +233,7 @@ pub mod users {
     #[post("/login?<name>&<pass>")]
     pub fn login(conn: DbConnection, name: String, pass: String) -> ApiResult<JsonValue> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        if let Some(user) = db.find_one::<User>(doc!{"name": &name}, None).not_found()? {
+        if let Some(user) = db.find_one::<User>(doc!{"name": &name}, None)? {
             if verify(&pass, user.password.as_str())? {
                 let token = encode_user(UserToken {
                     name: name.clone(),
@@ -245,6 +248,32 @@ pub mod users {
             }
         } else {
             not_found!(name);
+        }
+    }
+    #[post("/create?<name>&<pass>")]
+    pub fn create(conn: DbConnection, name: String, pass: String) -> ApiResult<Status> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if name.len() < 20 && pass.len() < 100 {
+            if let Some(user) = db.find_one::<User>(doc!{"name":&name}, None)? {
+                Err(WebError::new("User already exists").with_status(Status::Forbidden))
+            } else {
+                let mut hasher = Sha1::new();
+                let hashed = hash(pass, 10)?;
+                let now: DateTime<Local> = Local::now();
+                let date = now.to_rfc2822();
+                hasher.input_str(format!("{}{}",name, &date).as_str());
+                let id = hasher.result_str();
+                let nu = doc!(
+                    "name": &name,
+                    "pass": &hashed,
+                    "id": &id,
+                    "date":&date
+                );
+                db.insert_one::<User>(nu, None)?;
+                Ok(Status::Ok)
+            }
+        } else {
+            Err(WebError::new("Name or password too long").with_status(Status::PayloadTooLarge))
         }
     }
 }

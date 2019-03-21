@@ -6,10 +6,12 @@ extern crate mongodb;
 extern crate ravenserver;
 #[macro_use]
 extern crate rocket_contrib;
+extern crate crypto;
 extern crate serde;
 #[macro_use]
 extern crate lazy_static;
 extern crate bcrypt;
+extern crate chrono;
 extern crate jsonwebtoken as jwt;
 extern crate reqwest;
 extern crate serde_json;
@@ -43,7 +45,11 @@ pub fn rocket() -> rocket::Rocket {
         )
         .mount(
             "/themes/users/",
-            routes![routes::users::user_themes, routes::users::login],
+            routes![
+                routes::users::user_themes,
+                routes::users::login,
+                routes::users::create
+            ],
         )
         .mount(
             "/themes/report/",

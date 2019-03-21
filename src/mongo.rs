@@ -2,6 +2,7 @@ use crate::Result;
 use mongodb::coll::options::*;
 use mongodb::coll::results::*;
 use mongodb::coll::*;
+use mongodb::common::*;
 use mongodb::db::*;
 use mongodb::pool::*;
 use mongodb::*;
@@ -170,6 +171,30 @@ impl DataBase {
                 .clone(),
             write_concern,
         )?)
+    }
+    pub fn insert_one<T>(
+        &self,
+        doc: Document,
+        write_concern: Option<WriteConcern>,
+    ) -> Result<InsertOneResult>
+    where
+        T: Serialize,
+        T: MongoDocument,
+    {
+        Ok(self
+            .collection_by_type::<T>()
+            .insert_one(doc, write_concern)?)
+    }
+    pub fn insert_many<T>(
+        &self,
+        doc: Vec<Document>,
+        options: Option<InsertManyOptions>,
+    ) -> Result<InsertManyResult>
+    where
+        T: Serialize,
+        T: MongoDocument,
+    {
+        Ok(self.collection_by_type::<T>().insert_many(doc, options)?)
     }
 }
 pub trait MongoDocument {
