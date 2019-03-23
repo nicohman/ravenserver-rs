@@ -1,7 +1,10 @@
 use auth::*;
 use bcrypt::*;
+use chrono::prelude::*;
 use crate::routes::rendering::*;
 use crate::*;
+use crypto::digest::Digest;
+use crypto::sha1::Sha1;
 use mongodb::to_bson;
 use rocket::http::Status;
 use rocket::request::FromFormValue;
@@ -9,10 +12,8 @@ use rocket::response::status::Custom;
 use rocket::response::NamedFile;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_contrib::templates::Template;
-use chrono::prelude::*;
 use rocket_failure::errors::*;
-use crypto::digest::Digest;
-use crypto::sha1::Sha1;
+use std::fs;
 pub mod rendering {
     use crate::*;
     use mongodb::{to_bson, Bson};
@@ -101,10 +102,7 @@ pub fn about() -> Template {
 #[get("/<name>")]
 pub fn theme(conn: DbConnection, name: String) -> ApiResult<Template> {
     let db = DataBase::from_db(conn.0.clone()).unwrap();
-    if let Some(theme) = db
-        .find_one::<Theme>(doc!{"name": &name}, None)
-        ?
-    {
+    if let Some(theme) = db.find_one::<Theme>(doc!{"name": &name}, None)? {
         let mut context = CONFIG.clone();
         context.insert("theme".to_string(), to_bson(&theme).unwrap());
         Ok(Template::render("theme", context))
@@ -119,10 +117,7 @@ pub fn download_redirect() -> rocket::response::Redirect {
 #[get("/<name>")]
 pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<NamedFile>> {
     let db = DataBase::from_db(conn.0.clone()).unwrap();
-    if let Some(theme) = db
-        .find_one::<Theme>(doc!{ "name": &name }, None)
-       ?
-    {
+    if let Some(theme) = db.find_one::<Theme>(doc!{ "name": &name }, None)? {
         let file =
             NamedFile::open(env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path)
                 .unwrap();
@@ -130,6 +125,25 @@ pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<Name
             Ok(Custom(Status::AlreadyReported, file))
         } else {
             Ok(Custom(Status::Ok, file))
+        }
+    } else {
+        not_found!(name)
+    }
+}
+#[get("/<name>")]
+pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiResult<Status> {
+    let db = DataBase::from_db(conn.0.clone()).unwrap();
+    if let Some(mut theme) = db.find_one::<Theme>(doc!{"name":&name}, None)? {
+        if token.id == theme.author {
+            db.delete_one(theme, None)?;
+            fs::remove_dir_all(format!(
+                "{}/public/tcdn/{}",
+                env!("CARGO_MANIFEST_DIR"),
+                &name
+            ))?;
+            Ok(Status::Ok)
+        } else {
+            Err(WebError::new("Not allowed to delete this theme").with_status(Status::Forbidden))
         }
     } else {
         not_found!(name)
@@ -148,10 +162,7 @@ pub mod metadata {
     #[get("/<name>")]
     pub fn get_metadata(conn: DbConnection, name: String) -> ApiResult<JsonValue> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        if let Some(theme) = db
-            .find_one::<Theme>(doc! {"name": &name}, None)
-            ?
-        {
+        if let Some(theme) = db.find_one::<Theme>(doc! {"name": &name}, None)? {
             Ok(json!({
                 "screen": theme.screen,
                 "description":theme.description
@@ -209,10 +220,7 @@ pub mod users {
     #[get("/view/<id>")]
     pub fn user_themes(conn: DbConnection, id: String) -> ApiResult<Template> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        if let Some(user) = db
-            .find_one::<User>(doc!{"id":id.as_str()}, None)
-            ?
-        {
+        if let Some(user) = db.find_one::<User>(doc!{"id":id.as_str()}, None)? {
             let mut find = FindOptions::new();
             find.sort = Some(doc! {
                 "installs":-1
@@ -261,14 +269,9 @@ pub mod users {
                 let hashed = hash(pass, 10)?;
                 let now: DateTime<Local> = Local::now();
                 let date = now.to_rfc2822();
-                hasher.input_str(format!("{}{}",name, &date).as_str());
+                hasher.input_str(format!("{}{}", name, &date).as_str());
                 let id = hasher.result_str();
-                let nu = doc!(
-                    "name": &name,
-                    "pass": &hashed,
-                    "id": &id,
-                    "date":&date
-                );
+                let nu = doc!("name": &name, "pass": &hashed, "id": &id, "date": &date);
                 db.insert_one::<User>(nu, None)?;
                 Ok(Status::Ok)
             }
