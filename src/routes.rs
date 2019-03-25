@@ -6,14 +6,18 @@ use crate::*;
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 use mongodb::to_bson;
+use rocket::data::*;
 use rocket::http::Status;
 use rocket::request::FromFormValue;
 use rocket::response::status::Custom;
 use rocket::response::NamedFile;
+use rocket::Request;
+use rocket::Outcome::*;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_contrib::templates::Template;
 use rocket_failure::errors::*;
 use std::fs;
+pub const MAX_FILE_SIZE: i64 = 50000000;
 pub mod rendering {
     use crate::*;
     use mongodb::{to_bson, Bson};
@@ -30,8 +34,10 @@ pub mod rendering {
         let themes = themes
             .into_iter()
             .map(|mut x| {
-                x.screen = "https://images.weserv.nl/?url=".to_string()
-                    + &x.screen.replace("https://", "").replace("http://", "");
+                if x.screen.len() > 0 {
+                    x.screen = "https://images.weserv.nl/?url=".to_string()
+                        + &x.screen.replace("https://", "").replace("http://", "");
+                }
                 if x.description.len() > 35 {
                     x.description.truncate(35);
                     x.description += "...";
@@ -148,6 +154,74 @@ pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiRe
     } else {
         not_found!(name)
     }
+}
+pub struct UploadedTheme {
+    pub data: Data,
+}
+impl FromDataSimple for UploadedTheme {
+    type Error = String;
+    fn from_data(req: &Request, data: Data) -> Outcome<Self, String> {
+        let headers = req.headers();
+        if let Some(length_one) = headers.get_one("content-length") {
+            if let Ok(length) = i64::from_str_radix(length_one, 10) {
+                if length < MAX_FILE_SIZE {
+                    return Success(UploadedTheme { data: data });
+                } else {
+                    return Failure((Status::PayloadTooLarge, "Theme too big".to_string()));
+                }
+            } else {
+                return Failure((
+                    Status::UnprocessableEntity,
+                    "No valid content-length header".to_string(),
+                ));
+            }
+        } else {
+            return Failure((
+                Status::UnprocessableEntity,
+                "No content-length header".to_string(),
+            ));
+        }
+    }
+}
+#[post("/upload?<name>", data = "<theme>")]
+pub fn upload_theme(
+    conn: DbConnection,
+    name: String,
+    mut theme: UploadedTheme,
+    token: UserToken,
+) -> ApiResult<Custom<String>> {
+    let db = DataBase::from_db(conn.0.clone()).unwrap();
+    let mut found_theme = db.find_one::<Theme>(doc!{"name":&name}, None)?;
+    let mut status = Status::Created;
+    let filename = format!("{}.tar", &name);
+    let now: DateTime<Local> = Local::now();
+    let date = now.to_rfc2822();
+    if let Some(mut found_theme) = found_theme {
+        if found_theme.author != token.id {
+            return Err(WebError::new("Not owned by you").with_status(Status::Forbidden));
+        }
+        status = Status::Ok;
+        found_theme.updated = date;
+        db.save::<Theme>(found_theme, None)?;
+    } else {
+        let tosa = doc!{
+            "name":&name,
+            "author":&token.id,
+            "pauthor":&token.name,
+            "updated":&date,
+            "date":&date,
+            "description":"This theme doesn't have a description yet.",
+            "screen":"",
+            "path":&filename
+        };
+        db.insert_one::<Theme>(tosa, None)?;
+    }
+    theme.data.stream_to_file(format!(
+        "{}/public/tcdn/{}",
+        env!("CARGO_MANIFEST_DIR"),
+        &filename
+    ));
+    return Ok(Custom(status, filename));
 }
 /// Routes to do with theme metadata
 pub mod metadata {

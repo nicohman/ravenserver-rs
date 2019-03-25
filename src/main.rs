@@ -74,6 +74,7 @@ pub fn rocket() -> rocket::Rocket {
                 routes::metadata::post_metadata
             ],
         )
+        .mount("/themes", routes![routes::upload_theme])
 }
 fn main() {
     rocket().launch();
