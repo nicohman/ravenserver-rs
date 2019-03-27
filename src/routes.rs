@@ -11,8 +11,8 @@ use rocket::http::Status;
 use rocket::request::FromFormValue;
 use rocket::response::status::Custom;
 use rocket::response::NamedFile;
-use rocket::Request;
 use rocket::Outcome::*;
+use rocket::Request;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_contrib::templates::Template;
 use rocket_failure::errors::*;
@@ -136,7 +136,7 @@ pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<Name
         not_found!(name)
     }
 }
-#[get("/<name>")]
+#[post("/<name>")]
 pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiResult<Status> {
     let db = DataBase::from_db(conn.0.clone()).unwrap();
     if let Some(mut theme) = db.find_one::<Theme>(doc!{"name":&name}, None)? {
@@ -220,7 +220,7 @@ pub fn upload_theme(
         "{}/public/tcdn/{}",
         env!("CARGO_MANIFEST_DIR"),
         &filename
-    ));
+    ))?;
     return Ok(Custom(status, filename));
 }
 /// Routes to do with theme metadata
@@ -351,6 +351,30 @@ pub mod users {
             }
         } else {
             Err(WebError::new("Name or password too long").with_status(Status::PayloadTooLarge))
+        }
+    }
+    #[post("/delete/<name>?<pass>")]
+    pub fn delete(
+        conn: DbConnection,
+        name: String,
+        pass: String,
+        token: UserToken,
+    ) -> ApiResult<Status> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if name == token.name {
+            if let Some(user) = db.find_one::<User>(doc!{"name":&name, "id":&token.id}, None)? {
+                if verify(pass, &user.password)? {
+                    db.delete_one::<User>(user, None)?;
+                    db.delete::<User>(doc!{"author":&token.id}, None)?;
+                    Ok(Status::Ok)
+                } else {
+                    Err(WebError::new("Password doesn't match").with_status(Status::Forbidden))
+                }
+            } else {
+                not_found!(name)
+            }
+        } else {
+            Err(WebError::new("Name and token don't match").with_status(Status::Forbidden))
         }
     }
 }

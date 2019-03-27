@@ -35,17 +35,17 @@ mod routes;
 #[database("mongodb")]
 pub struct DbConnection(databases::mongodb::db::Database);
 pub fn rocket() -> rocket::Rocket {
-    let mut st = String::new();
-    File::open(format!("{}/downloads.json", env!("CARGO_MANIFEST_DIR")))
-        .expect("Couldn't open downloads storage file")
-        .read_to_string(&mut st)
-        .expect("Couldn't read download counting file");
-    let mut downloads: HashMap<String, i64> = serde_json::from_str(&st).unwrap();
     rocket::ignite()
         .attach(DbConnection::fairing())
         .attach(Template::fairing())
         .attach(AdHoc::on_request("Download Counter", |req, data| {
             if req.uri().path().contains("nightly") {
+                let mut st = String::new();
+                File::open(format!("{}/downloads.json", env!("CARGO_MANIFEST_DIR")))
+                    .expect("Couldn't open downloads storage file")
+                    .read_to_string(&mut st)
+                    .expect("Couldn't read download counting file");
+                let mut downloads: HashMap<String, i64> = serde_json::from_str(&st).unwrap();
                 let fname = req.uri().segments().last().unwrap().to_string();
                 if downloads.contains_key(&fname) {
                     *downloads.get_mut(&fname).unwrap() += 1;
@@ -72,7 +72,8 @@ pub fn rocket() -> rocket::Rocket {
             routes![
                 routes::users::user_themes,
                 routes::users::login,
-                routes::users::create
+                routes::users::create,
+                routes::users::delete
             ],
         )
         .mount(
@@ -98,7 +99,7 @@ pub fn rocket() -> rocket::Rocket {
                 routes::metadata::post_metadata
             ],
         )
-        .mount("/themes", routes![routes::upload_theme])
+        .mount("/themes", routes![routes::upload_theme, routes::delete_theme])
 }
 fn main() {
     rocket().launch();

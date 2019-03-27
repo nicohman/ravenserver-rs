@@ -138,21 +138,15 @@ impl DataBase {
     }
     pub fn delete<T>(
         &self,
-        document: T,
+        document: Document,
         write_concern: Option<mongodb::common::WriteConcern>,
     ) -> Result<DeleteResult>
     where
-        T: Serialize,
         T: MongoDocument,
     {
-        Ok(self.collection_by_type::<T>().delete_many(
-            mongodb::to_bson(&document)
-                .unwrap()
-                .as_document()
-                .unwrap()
-                .clone(),
-            write_concern,
-        )?)
+        Ok(self
+            .collection_by_type::<T>()
+            .delete_many(document, write_concern)?)
     }
     pub fn delete_one<T>(
         &self,
