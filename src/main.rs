@@ -24,16 +24,40 @@ extern crate rocket_failure;
 use mongodb::coll::options::*;
 use ravenserver::mongo::*;
 use ravenserver::themes::*;
+use rocket::fairing::AdHoc;
 use rocket_contrib::databases;
 use rocket_contrib::templates::Template;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{Read, Write};
 mod auth;
 mod routes;
 #[database("mongodb")]
 pub struct DbConnection(databases::mongodb::db::Database);
 pub fn rocket() -> rocket::Rocket {
+    let mut st = String::new();
+    File::open(format!("{}/downloads.json", env!("CARGO_MANIFEST_DIR")))
+        .expect("Couldn't open downloads storage file")
+        .read_to_string(&mut st)
+        .expect("Couldn't read download counting file");
+    let mut downloads: HashMap<String, i64> = serde_json::from_str(&st).unwrap();
     rocket::ignite()
         .attach(DbConnection::fairing())
         .attach(Template::fairing())
+        .attach(AdHoc::on_request("Download Counter", |req, data| {
+            if req.uri().path().contains("nightly") {
+                let fname = req.uri().segments().last().unwrap().to_string();
+                if downloads.contains_key(&fname) {
+                    *downloads.get_mut(&fname).unwrap() += 1;
+                } else {
+                    downloads.insert(fname, 1);
+                }
+                File::open(format!("{}/downloads.json", env!("CARGO_MANIFEST_DIR")))
+                    .unwrap()
+                    .write_all(serde_json::to_string(&downloads).unwrap().as_bytes())
+                    .unwrap();
+            }
+        }))
         .mount(
             "/",
             routes![
