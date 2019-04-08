@@ -83,8 +83,6 @@ pub fn rocket() -> rocket::Rocket {
                 routes::report::report_view_default
             ],
         )
-        .mount("/themes/view/", routes![routes::theme])
-        .mount("/themes/repo", routes![routes::download_theme])
         .mount(
             "/",
             rocket_contrib::serve::StaticFiles::from(concat!(
@@ -99,7 +97,15 @@ pub fn rocket() -> rocket::Rocket {
                 routes::metadata::post_metadata
             ],
         )
-        .mount("/themes", routes![routes::upload_theme, routes::delete_theme])
+        .mount(
+            "/themes",
+            routes![
+                routes::themes::download_theme,
+                routes::themes::theme,
+                routes::themes::upload_theme,
+                routes::themes::delete_theme
+            ],
+        )
 }
 fn main() {
     rocket().launch();

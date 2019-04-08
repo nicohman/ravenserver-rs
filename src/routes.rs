@@ -1,8 +1,8 @@
+use crate::routes::rendering::*;
+use crate::*;
 use auth::*;
 use bcrypt::*;
 use chrono::prelude::*;
-use crate::routes::rendering::*;
-use crate::*;
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 use mongodb::to_bson;
@@ -18,6 +18,7 @@ use rocket_contrib::templates::Template;
 use rocket_failure::errors::*;
 use std::fs;
 pub const MAX_FILE_SIZE: i64 = 50000000;
+/// General helpers for rendering views of multiple themes
 pub mod rendering {
     use crate::*;
     use mongodb::{to_bson, Bson};
@@ -105,123 +106,132 @@ pub fn recent(conn: DbConnection) -> Template {
 pub fn about() -> Template {
     Template::render("about", CONFIG.clone())
 }
-#[get("/<name>")]
-pub fn theme(conn: DbConnection, name: String) -> ApiResult<Template> {
-    let db = DataBase::from_db(conn.0.clone()).unwrap();
-    if let Some(theme) = db.find_one::<Theme>(doc!{"name": &name}, None)? {
-        let mut context = CONFIG.clone();
-        context.insert("theme".to_string(), to_bson(&theme).unwrap());
-        Ok(Template::render("theme", context))
-    } else {
-        not_found!(name)
-    }
-}
 #[get("/downloads")]
 pub fn download_redirect() -> rocket::response::Redirect {
     rocket::response::Redirect::to("https://nicohman.demenses.net/downloads")
 }
-#[get("/<name>")]
-pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<NamedFile>> {
-    let db = DataBase::from_db(conn.0.clone()).unwrap();
-    if let Some(theme) = db.find_one::<Theme>(doc!{ "name": &name }, None)? {
-        let file =
-            NamedFile::open(env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path)
-                .unwrap();
-        if theme.reports.len() > 0 && !theme.approved {
-            Ok(Custom(Status::AlreadyReported, file))
+/// Routes to do with themes
+pub mod themes {
+    use super::*;
+    #[get("/repo/<name>")]
+    pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<NamedFile>> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if let Some(theme) = db.find_one::<Theme>(doc! { "name": &name }, None)? {
+            let file = NamedFile::open(
+                env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path,
+            )
+            .unwrap();
+            if theme.reports.len() > 0 && !theme.approved {
+                Ok(Custom(Status::AlreadyReported, file))
+            } else {
+                Ok(Custom(Status::Ok, file))
+            }
         } else {
-            Ok(Custom(Status::Ok, file))
+            not_found!(name)
         }
-    } else {
-        not_found!(name)
     }
-}
-#[post("/<name>")]
-pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiResult<Status> {
-    let db = DataBase::from_db(conn.0.clone()).unwrap();
-    if let Some(mut theme) = db.find_one::<Theme>(doc!{"name":&name}, None)? {
-        if token.id == theme.author {
-            db.delete_one(theme, None)?;
-            fs::remove_dir_all(format!(
-                "{}/public/tcdn/{}",
-                env!("CARGO_MANIFEST_DIR"),
-                &name
-            ))?;
-            Ok(Status::Ok)
+
+    #[get("/view/<name>")]
+    pub fn theme(conn: DbConnection, name: String) -> ApiResult<Template> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if let Some(theme) = db.find_one::<Theme>(doc! {"name": &name}, None)? {
+            let mut context = CONFIG.clone();
+            context.insert("theme".to_string(), to_bson(&theme).unwrap());
+            Ok(Template::render("theme", context))
         } else {
-            Err(WebError::new("Not allowed to delete this theme").with_status(Status::Forbidden))
+            not_found!(name)
         }
-    } else {
-        not_found!(name)
     }
-}
-pub struct UploadedTheme {
-    pub data: Data,
-}
-impl FromDataSimple for UploadedTheme {
-    type Error = String;
-    fn from_data(req: &Request, data: Data) -> Outcome<Self, String> {
-        let headers = req.headers();
-        if let Some(length_one) = headers.get_one("content-length") {
-            if let Ok(length) = i64::from_str_radix(length_one, 10) {
-                if length < MAX_FILE_SIZE {
-                    return Success(UploadedTheme { data: data });
+
+    #[post("/<name>")]
+    pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiResult<Status> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        if let Some(mut theme) = db.find_one::<Theme>(doc! {"name":&name}, None)? {
+            if token.id == theme.author {
+                db.delete_one(theme, None)?;
+                fs::remove_dir_all(format!(
+                    "{}/public/tcdn/{}",
+                    env!("CARGO_MANIFEST_DIR"),
+                    &name
+                ))?;
+                Ok(Status::Ok)
+            } else {
+                Err(WebError::new("Not allowed to delete this theme")
+                    .with_status(Status::Forbidden))
+            }
+        } else {
+            not_found!(name)
+        }
+    }
+    #[post("/upload?<name>", data = "<theme>")]
+    pub fn upload_theme(
+        conn: DbConnection,
+        name: String,
+        mut theme: UploadedTheme,
+        token: UserToken,
+    ) -> ApiResult<Custom<String>> {
+        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let mut found_theme = db.find_one::<Theme>(doc! {"name":&name}, None)?;
+        let mut status = Status::Created;
+        let filename = format!("{}.tar", &name);
+        let now: DateTime<Local> = Local::now();
+        let date = now.to_rfc2822();
+        if let Some(mut found_theme) = found_theme {
+            if found_theme.author != token.id {
+                return Err(WebError::new("Not owned by you").with_status(Status::Forbidden));
+            }
+            status = Status::Ok;
+            found_theme.updated = date;
+            db.save::<Theme>(found_theme, None)?;
+        } else {
+            let tosa = doc! {
+                "name":&name,
+                "author":&token.id,
+                "pauthor":&token.name,
+                "updated":&date,
+                "date":&date,
+                "description":"This theme doesn't have a description yet.",
+                "screen":"",
+                "path":&filename
+            };
+            db.insert_one::<Theme>(tosa, None)?;
+        }
+        theme.data.stream_to_file(format!(
+            "{}/public/tcdn/{}",
+            env!("CARGO_MANIFEST_DIR"),
+            &filename
+        ))?;
+        return Ok(Custom(status, filename));
+    }
+    pub struct UploadedTheme {
+        pub data: Data,
+    }
+    impl FromDataSimple for UploadedTheme {
+        type Error = String;
+        fn from_data(req: &Request, data: Data) -> Outcome<Self, String> {
+            let headers = req.headers();
+            if let Some(length_one) = headers.get_one("content-length") {
+                if let Ok(length) = i64::from_str_radix(length_one, 10) {
+                    if length < MAX_FILE_SIZE {
+                        return Success(UploadedTheme { data: data });
+                    } else {
+                        return Failure((Status::PayloadTooLarge, "Theme too big".to_string()));
+                    }
                 } else {
-                    return Failure((Status::PayloadTooLarge, "Theme too big".to_string()));
+                    return Failure((
+                        Status::UnprocessableEntity,
+                        "No valid content-length header".to_string(),
+                    ));
                 }
             } else {
                 return Failure((
                     Status::UnprocessableEntity,
-                    "No valid content-length header".to_string(),
+                    "No content-length header".to_string(),
                 ));
             }
-        } else {
-            return Failure((
-                Status::UnprocessableEntity,
-                "No content-length header".to_string(),
-            ));
         }
     }
-}
-#[post("/upload?<name>", data = "<theme>")]
-pub fn upload_theme(
-    conn: DbConnection,
-    name: String,
-    mut theme: UploadedTheme,
-    token: UserToken,
-) -> ApiResult<Custom<String>> {
-    let db = DataBase::from_db(conn.0.clone()).unwrap();
-    let mut found_theme = db.find_one::<Theme>(doc!{"name":&name}, None)?;
-    let mut status = Status::Created;
-    let filename = format!("{}.tar", &name);
-    let now: DateTime<Local> = Local::now();
-    let date = now.to_rfc2822();
-    if let Some(mut found_theme) = found_theme {
-        if found_theme.author != token.id {
-            return Err(WebError::new("Not owned by you").with_status(Status::Forbidden));
-        }
-        status = Status::Ok;
-        found_theme.updated = date;
-        db.save::<Theme>(found_theme, None)?;
-    } else {
-        let tosa = doc!{
-            "name":&name,
-            "author":&token.id,
-            "pauthor":&token.name,
-            "updated":&date,
-            "date":&date,
-            "description":"This theme doesn't have a description yet.",
-            "screen":"",
-            "path":&filename
-        };
-        db.insert_one::<Theme>(tosa, None)?;
-    }
-    theme.data.stream_to_file(format!(
-        "{}/public/tcdn/{}",
-        env!("CARGO_MANIFEST_DIR"),
-        &filename
-    ))?;
-    return Ok(Custom(status, filename));
+
 }
 /// Routes to do with theme metadata
 pub mod metadata {
@@ -294,7 +304,7 @@ pub mod users {
     #[get("/view/<id>")]
     pub fn user_themes(conn: DbConnection, id: String) -> ApiResult<Template> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        if let Some(user) = db.find_one::<User>(doc!{"id":id.as_str()}, None)? {
+        if let Some(user) = db.find_one::<User>(doc! {"id":id.as_str()}, None)? {
             let mut find = FindOptions::new();
             find.sort = Some(doc! {
                 "installs":-1
@@ -315,7 +325,7 @@ pub mod users {
     #[post("/login?<name>&<pass>")]
     pub fn login(conn: DbConnection, name: String, pass: String) -> ApiResult<JsonValue> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
-        if let Some(user) = db.find_one::<User>(doc!{"name": &name}, None)? {
+        if let Some(user) = db.find_one::<User>(doc! {"name": &name}, None)? {
             if verify(&pass, user.password.as_str())? {
                 let token = encode_user(UserToken {
                     name: name.clone(),
@@ -336,7 +346,7 @@ pub mod users {
     pub fn create(conn: DbConnection, name: String, pass: String) -> ApiResult<Status> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if name.len() < 20 && pass.len() < 100 {
-            if let Some(user) = db.find_one::<User>(doc!{"name":&name}, None)? {
+            if let Some(user) = db.find_one::<User>(doc! {"name":&name}, None)? {
                 Err(WebError::new("User already exists").with_status(Status::Forbidden))
             } else {
                 let mut hasher = Sha1::new();
@@ -362,10 +372,10 @@ pub mod users {
     ) -> ApiResult<Status> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if name == token.name {
-            if let Some(user) = db.find_one::<User>(doc!{"name":&name, "id":&token.id}, None)? {
+            if let Some(user) = db.find_one::<User>(doc! {"name":&name, "id":&token.id}, None)? {
                 if verify(pass, &user.password)? {
                     db.delete_one::<User>(user, None)?;
-                    db.delete::<User>(doc!{"author":&token.id}, None)?;
+                    db.delete::<User>(doc! {"author":&token.id}, None)?;
                     Ok(Status::Ok)
                 } else {
                     Err(WebError::new("Password doesn't match").with_status(Status::Forbidden))
