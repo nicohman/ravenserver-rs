@@ -139,7 +139,7 @@ pub mod themes {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if let Some(theme) = db.find_one::<Theme>(doc! { "name": &name }, None)? {
             let file = NamedFile::open(
-                env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn" + &theme.path,
+                env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn/" + &theme.path,
             )
             .unwrap();
             if theme.reports.len() > 0 && !theme.approved {
@@ -164,17 +164,18 @@ pub mod themes {
         }
     }
 
-    #[post("/<name>")]
+    #[post("/delete/<name>")]
     pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiResult<Status> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if let Some(mut theme) = db.find_one::<Theme>(doc! {"name":&name}, None)? {
             if token.id == theme.author {
-                db.delete_one(theme, None)?;
-                fs::remove_dir_all(format!(
+                let path = format!(
                     "{}/public/tcdn/{}",
                     env!("CARGO_MANIFEST_DIR"),
-                    &name
-                ))?;
+                    &theme.path
+                );
+                fs::remove_file(path)?;
+                db.delete_one(theme, None)?;
                 Ok(Status::Ok)
             } else {
                 Err(WebError::new("Not allowed to delete this theme")
@@ -343,7 +344,7 @@ pub mod users {
             not_found!(id)
         }
     }
-    #[post("/login?<name>&<pass>")]
+    #[get("/login?<name>&<pass>")]
     pub fn login(conn: DbConnection, name: String, pass: String) -> ApiResult<JsonValue> {
         let db = DataBase::from_db(conn.0.clone()).unwrap();
         if let Some(user) = db.find_one::<User>(doc! {"name": &name}, None)? {

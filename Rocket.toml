@@ -1,6 +1,7 @@
 [development]
 port = 8080
 [production]
-port = 8080 
+port = 8080
+tls = { certs = "/etc/letsencrypt/live/demenses.net/fullchain.pem", key = "/etc/letsencrypt/live/demenses.net/privkey.pem" } 
 [global.databases]
 mongodb = { url = "mongodb://127.0.0.1/themes"}

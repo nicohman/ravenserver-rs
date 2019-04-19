@@ -7,7 +7,7 @@ edition = "2018"
 name = "ravenserver"
 path = "src/lib.rs"
 [dependencies]
-rocket = "0.4.0"
+rocket = { version = "0.4.0", features = ["tls"]}
 jsonwebtoken = "5"
 mongodb = "0.3.11"
 serde = "1.0"
