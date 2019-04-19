@@ -18,6 +18,15 @@ use rocket_contrib::templates::Template;
 use rocket_failure::errors::*;
 use std::fs;
 pub const MAX_FILE_SIZE: i64 = 50000000;
+lazy_static! {
+    pub static ref DOWNLOADS: HashMap<String, String> = {
+        let mut map = HashMap::new();
+        map.insert("raven".to_string(), "static/raven-nightly".to_string());
+        map.insert("ravend".to_string(), "static/ravend-nightly".to_string());
+        map.insert("eidolon".to_string(), "static/eidolon-nightly".to_string());
+        map
+    };
+}
 /// General helpers for rendering views of multiple themes
 pub mod rendering {
     use crate::*;
@@ -109,6 +118,18 @@ pub fn about() -> Template {
 #[get("/downloads")]
 pub fn download_redirect() -> rocket::response::Redirect {
     rocket::response::Redirect::to("https://nicohman.demenses.net/downloads")
+}
+#[get("/checksums")]
+pub fn checksums() -> ApiResult<Template> {
+    let mut md5 = crypto::md5::Md5::new();
+    let mut sums = HashMap::new();
+    for (key, value) in DOWNLOADS.iter() {
+        let mut loaded = String::new();
+        File::open(&value)?.read_to_string(&mut loaded)?;
+        md5.input_str(&loaded);
+        sums.insert(key.to_string(), md5.result_str());
+    }
+    Ok(Template::render("checksums", sums))
 }
 /// Routes to do with themes
 pub mod themes {

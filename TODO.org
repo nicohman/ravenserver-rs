@@ -1,10 +1,3 @@
 * Public Views
 ** TODO Checksums
 * API Endpoints
-** TODO Login
-** TODO Create User
-** TODO Delete user
-** TODO Report Theme
-** TODO Upload theme
-** TODO Delete Theme
-** TODO Download Counting
