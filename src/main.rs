@@ -77,6 +77,10 @@ pub fn rocket() -> rocket::Rocket {
             ],
         )
         .mount(
+            "/themes/user/",
+            routes![routes::users::login, routes::users::create],
+        )
+        .mount(
             "/themes/report/",
             routes![
                 routes::report::report_view,
