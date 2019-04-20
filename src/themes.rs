@@ -11,9 +11,9 @@ pub struct Theme {
     pub updated: String,
     pub description: String,
     #[serde(default)]
-    pub installs: i32,
+    pub installs: f64,
     #[serde(default)]
-    pub votes: i32,
+    pub votes: f64,
     #[serde(default)]
     pub reports: Vec<Report>,
     #[serde(default)]
@@ -23,7 +23,7 @@ pub struct Theme {
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Report {
-    pub date: String,
+    pub date: mongodb::UtcDateTime,
     pub reason: String,
     pub info: String,
 }

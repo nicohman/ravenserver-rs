@@ -7,6 +7,7 @@ extern crate mongodb;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate chrono;
 
 pub mod error;
 pub use error::{Result};

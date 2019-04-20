@@ -70,11 +70,14 @@ pub mod rendering {
             constraints.map_or(String::default(), |x| x.into()),
         );
         let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let mut def_find = FindOptions::default();
+        def_find.batch_size = Some(50);
         let themes = db
-            .find::<Theme>(filter.unwrap_or(doc!()), options)
+            .find::<Theme>(filter.unwrap_or(doc!()), Some(options.unwrap_or(def_find)))
             .unwrap()
             .into_iter()
-            .filter_map(|x| x.ok())
+            .filter_map(|x| {
+                x.ok()})
             .collect::<Vec<Theme>>();
         let mut context = CONFIG.clone();
         context.insert("ptitle".to_string(), to_bson(&ptitle).unwrap());
