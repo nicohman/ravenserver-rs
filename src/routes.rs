@@ -24,6 +24,7 @@ lazy_static! {
         map.insert("raven".to_string(), "static/raven-nightly".to_string());
         map.insert("ravend".to_string(), "static/ravend-nightly".to_string());
         map.insert("eidolon".to_string(), "static/eidolon-nightly".to_string());
+        map.insert("wyvern".to_string(), "static/wyvern-nightly".to_string());
         map
     };
 }
@@ -127,10 +128,11 @@ pub fn checksums() -> ApiResult<Template> {
     let mut md5 = crypto::md5::Md5::new();
     let mut sums = HashMap::new();
     for (key, value) in DOWNLOADS.iter() {
-        let mut loaded = String::new();
-        File::open(&value)?.read_to_string(&mut loaded)?;
-        md5.input_str(&loaded);
+        let mut loaded = vec![];
+        File::open(format!("{}/{}",env!("CARGO_MANIFEST_DIR"), value)).unwrap().read_to_end(&mut loaded).unwrap();
+        md5.input(&loaded);
         sums.insert(key.to_string(), md5.result_str());
+        md5.reset();
     }
     Ok(Template::render("checksums", sums))
 }

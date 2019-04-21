@@ -52,10 +52,12 @@ pub fn rocket() -> rocket::Rocket {
                 } else {
                     downloads.insert(fname, 1);
                 }
-                File::open(format!("{}/downloads.json", env!("CARGO_MANIFEST_DIR")))
-                    .unwrap()
-                    .write_all(serde_json::to_string(&downloads).unwrap().as_bytes())
+                let path = format!("{}/downloads.json", env!("CARGO_MANIFEST_DIR"));
+                                   println!("{}", path);
+                File::open(path)
                     .unwrap();
+                    //.write_all(serde_json::to_string(&downloads).unwrap().as_bytes())
+                    //.unwrap();
             }
         }))
         .mount(
@@ -64,7 +66,8 @@ pub fn rocket() -> rocket::Rocket {
                 routes::index,
                 routes::recent,
                 routes::about,
-                routes::download_redirect
+                routes::download_redirect,
+                routes::checksums
             ],
         )
         .mount(
