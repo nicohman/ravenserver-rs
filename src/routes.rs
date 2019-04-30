@@ -16,8 +16,11 @@ use rocket::Request;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_contrib::templates::Template;
 use rocket_failure::errors::*;
+use rocket::State;
+use mongodb::Client;
 use std::fs;
 pub const MAX_FILE_SIZE: i64 = 50000000;
+pub const DATABASE_NAME: &'static str = "themes"; 
 lazy_static! {
     pub static ref DOWNLOADS: HashMap<String, String> = {
         let mut map = HashMap::new();
@@ -34,6 +37,9 @@ pub mod rendering {
     use mongodb::{to_bson, Bson};
     use rocket_contrib::templates::Template;
     use std::collections::HashMap;
+    use rocket::State;
+    use mongodb::Client;
+    use crate::routes::DATABASE_NAME;
     lazy_static! {
         pub static ref CONFIG: HashMap<String, Bson> = {
             let mut map = HashMap::new();
@@ -60,7 +66,7 @@ pub mod rendering {
         Template::render("themes", &context)
     }
     pub fn render_themes_view(
-        conn: DbConnection,
+        conn: State<Client>,
         filter: Option<mongodb::Document>,
         options: Option<FindOptions>,
         ptitle: impl Into<String>,
@@ -70,7 +76,7 @@ pub mod rendering {
             ptitle.into(),
             constraints.map_or(String::default(), |x| x.into()),
         );
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         let mut def_find = FindOptions::default();
         def_find.batch_size = Some(50);
         let themes = db
@@ -88,7 +94,7 @@ pub mod rendering {
 
 }
 #[get("/")]
-pub fn index(conn: DbConnection) -> Template {
+pub fn index(conn: State<Client>) -> Template {
     let mut find = FindOptions::new();
     find.sort = Some(doc! {
         "installs":-1
@@ -102,7 +108,7 @@ pub fn index(conn: DbConnection) -> Template {
     )
 }
 #[get("/recent")]
-pub fn recent(conn: DbConnection) -> Template {
+pub fn recent(conn: State<Client>) -> Template {
     let mut find = FindOptions::new();
     find.sort = Some(doc! {
         "updated":  -1
@@ -140,8 +146,8 @@ pub fn checksums() -> ApiResult<Template> {
 pub mod themes {
     use super::*;
     #[get("/repo/<name>")]
-    pub fn download_theme(conn: DbConnection, name: String) -> ApiResult<Custom<NamedFile>> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn download_theme(conn: State<Client>, name: String) -> ApiResult<Custom<NamedFile>> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(theme) = db.find_one::<Theme>(doc! { "name": &name }, None)? {
             let file = NamedFile::open(
                 env!("CARGO_MANIFEST_DIR").to_string() + "/public/tcdn/" + &theme.path,
@@ -158,8 +164,8 @@ pub mod themes {
     }
 
     #[get("/view/<name>")]
-    pub fn theme(conn: DbConnection, name: String) -> ApiResult<Template> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn theme(conn: State<Client>, name: String) -> ApiResult<Template> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(theme) = db.find_one::<Theme>(doc! {"name": &name}, None)? {
             let mut context = CONFIG.clone();
             context.insert("theme".to_string(), to_bson(&theme).unwrap());
@@ -170,8 +176,8 @@ pub mod themes {
     }
 
     #[post("/delete/<name>")]
-    pub fn delete_theme(conn: DbConnection, name: String, token: UserToken) -> ApiResult<Status> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn delete_theme(conn: State<Client>, name: String, token: UserToken) -> ApiResult<Status> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(mut theme) = db.find_one::<Theme>(doc! {"name":&name}, None)? {
             if token.id == theme.author {
                 let path = format!(
@@ -192,12 +198,12 @@ pub mod themes {
     }
     #[post("/upload?<name>", data = "<theme>")]
     pub fn upload_theme(
-        conn: DbConnection,
+        conn: State<Client>,
         name: String,
         mut theme: UploadedTheme,
         token: UserToken,
     ) -> ApiResult<Custom<String>> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         let mut found_theme = db.find_one::<Theme>(doc! {"name":&name}, None)?;
         let mut status = Status::Created;
         let filename = format!("{}.tar", &name);
@@ -271,8 +277,8 @@ pub mod metadata {
     }
     use super::*;
     #[get("/<name>")]
-    pub fn get_metadata(conn: DbConnection, name: String) -> ApiResult<JsonValue> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn get_metadata(conn: State<Client>, name: String) -> ApiResult<JsonValue> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(theme) = db.find_one::<Theme>(doc! {"name": &name}, None)? {
             Ok(json!({
                 "screen": theme.screen,
@@ -284,13 +290,13 @@ pub mod metadata {
     }
     #[post("/<name>?<typem>&<value>")]
     pub fn post_metadata(
-        conn: DbConnection,
+        conn: State<Client>,
         name: String,
         token: UserToken,
         typem: MetaDataType,
         value: String,
     ) -> ApiResult<()> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(mut theme) = db.find_one::<Theme>(doc! {"name":&name}, None)? {
             if token.id == theme.author {
                 match typem {
@@ -329,8 +335,8 @@ pub mod report {
 pub mod users {
     use super::*;
     #[get("/view/<id>")]
-    pub fn user_themes(conn: DbConnection, id: String) -> ApiResult<Template> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn user_themes(conn: State<Client>, id: String) -> ApiResult<Template> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(user) = db.find_one::<User>(doc! {"id":id.as_str()}, None)? {
             let mut find = FindOptions::new();
             find.sort = Some(doc! {
@@ -350,8 +356,8 @@ pub mod users {
         }
     }
     #[get("/login?<name>&<pass>")]
-    pub fn login(conn: DbConnection, name: String, pass: String) -> ApiResult<JsonValue> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn login(conn: State<Client>, name: String, pass: String) -> ApiResult<JsonValue> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if let Some(user) = db.find_one::<User>(doc! {"name": &name}, None)? {
             if verify(&pass, user.password.as_str())? {
                 let token = encode_user(UserToken {
@@ -370,8 +376,8 @@ pub mod users {
         }
     }
     #[post("/create?<name>&<pass>")]
-    pub fn create(conn: DbConnection, name: String, pass: String) -> ApiResult<Status> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+    pub fn create(conn: State<Client>, name: String, pass: String) -> ApiResult<Status> {
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if name.len() < 20 && pass.len() < 100 {
             if let Some(user) = db.find_one::<User>(doc! {"name":&name}, None)? {
                 Err(WebError::new("User already exists").with_status(Status::Forbidden))
@@ -392,12 +398,12 @@ pub mod users {
     }
     #[post("/delete/<name>?<pass>")]
     pub fn delete(
-        conn: DbConnection,
+        conn: State<Client>,
         name: String,
         pass: String,
         token: UserToken,
     ) -> ApiResult<Status> {
-        let db = DataBase::from_db(conn.0.clone()).unwrap();
+        let db = DataBase::from_client(conn.clone(), DATABASE_NAME);
         if name == token.name {
             if let Some(user) = db.find_one::<User>(doc! {"name":&name, "id":&token.id}, None)? {
                 if verify(pass, &user.password)? {

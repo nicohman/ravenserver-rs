@@ -30,13 +30,13 @@ use rocket_contrib::templates::Template;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
+use mongodb::ThreadedClient;
 mod auth;
 mod routes;
-#[database("mongodb")]
-pub struct DbConnection(databases::mongodb::db::Database);
 pub fn rocket() -> rocket::Rocket {
+    let client = mongodb::Client::connect("localhost", 27017).expect("Couldn't initialize mongodb");
     rocket::ignite()
-        .attach(DbConnection::fairing())
+        .manage(client)
         .attach(Template::fairing())
         .attach(AdHoc::on_request("Download Counter", |req, data| {
             if req.uri().path().contains("nightly") {
