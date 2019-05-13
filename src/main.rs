@@ -25,7 +25,6 @@ use mongodb::coll::options::*;
 use ravenserver::mongo::*;
 use ravenserver::themes::*;
 use rocket::fairing::AdHoc;
-use rocket_contrib::databases;
 use rocket_contrib::templates::Template;
 use std::collections::HashMap;
 use std::fs::File;
@@ -92,10 +91,10 @@ pub fn rocket() -> rocket::Rocket {
         )
         .mount(
             "/",
-            rocket_contrib::serve::StaticFiles::from(concat!(
+            rocket_contrib::serve::StaticFiles::new(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/static"
-            )),
+            ), rocket_contrib::serve::Options::DotFiles),
         )
         .mount(
             "/themes/meta",
